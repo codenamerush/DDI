@@ -33,13 +33,13 @@ public class Initialize {
 	public static void main(String[] args) {
 		// String[] args = {"generate", "/images/elsa.jpg", "/images/conv-elsa.jpg",
 		// "/images/hist-elsa.jpg", "33333"};
-		// String[] args = {"compare", "11111", "33333"};
+//		 String[] args = {"compare", "9cd1e8619759-4fde-b433-810965895976", "9cd1e8619759-4fde-b433-810965895976"};
 		switch (args[0]) {
 		case "generate":
 			Initialize.generateContourHistograms(args[1], args[2], args[3], args[4]);
 			break;
 		case "compare":
-			System.out.println(Initialize.compare(args[1], args[2]));
+			System.out.println(Initialize.compare(args));
 			break;
 		default:
 
@@ -47,7 +47,7 @@ public class Initialize {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static String compare(String imageId1, String imageId2) {
+	public static String compare(String[] args) {
 		System.load("/home/" + System.getProperty("user.name") + "/libs/build/lib" + Core.NATIVE_LIBRARY_NAME + ".so");
 		JsonObject obj = new JsonObject();
 		MongoClientURI connectionString = new MongoClientURI("mongodb://localhost:27017/loginapp");
@@ -55,63 +55,70 @@ public class Initialize {
 		MongoDatabase database = mongoClient.getDatabase("loginapp");
 		MongoCollection<Document> imagesCollection = database.getCollection("images");
 		MongoCollection<Document> contoursCollection = database.getCollection("contours");
-		List<Document> documents1 = (List<Document>) imagesCollection.find(eq("_id", imageId1))
-				.into(new ArrayList<Document>());
-		Document image1 = documents1.get(0);
-		ArrayList<String> contours1 = (ArrayList<String>) image1.get("contours");
-
-		List<Document> documents2 = (List<Document>) imagesCollection.find(eq("_id", imageId2))
-				.into(new ArrayList<Document>());
-		Document image2 = documents2.get(0);
-		ArrayList<String> contours2 = (ArrayList<String>) image2.get("contours");
-
-		int numberOfComparisons = 0;
-		if (contours1.size() < contours2.size()) {
-			numberOfComparisons = contours1.size();
-		} else {
-			numberOfComparisons = contours2.size();
-		}
-
-		obj.addProperty("c1", contours1.size());
-		obj.addProperty("c2", contours2.size());
+		int index = 2; // comparing to images start from index 2
+		List<Document> documents = null;
 		
+		List<Document> originalDoc = (List<Document>) imagesCollection.find(eq("_id", args[1]))
+				.into(new ArrayList<Document>());
+		Document originalImage = originalDoc.get(0);
+		ArrayList<String> originalContours = (ArrayList<String>) originalImage.get("contours");
+
+		while (index < args.length) {
+			JsonObject compareObjJSON = new JsonObject();
+			List<Document> toCompareDoc = (List<Document>) imagesCollection.find(eq("_id", args[index]))
+					.into(new ArrayList<Document>());
+			Document toCompareImage = toCompareDoc.get(0);
+			ArrayList<String> toCompareContours = (ArrayList<String>) toCompareImage.get("contours");
+			int numberOfComparisons = 0;
 		
-		String comparisons_r = "[";
-		String comparisons_g = "[";
-		String comparisons_b = "[";
-
-		for (int i = 0; i < numberOfComparisons; i++) {
-			List<Document> contoursOf1 = (List<Document>) contoursCollection.find(eq("_id", imageId1 + i))
-					.into(new ArrayList<Document>());
-			Mat contourOf1_r = Initialize.matFromJson((String) contoursOf1.get(0).get("contours_r"));
-			Mat contourOf1_g = Initialize.matFromJson((String) contoursOf1.get(0).get("contours_g"));
-			Mat contourOf1_b = Initialize.matFromJson((String) contoursOf1.get(0).get("contours_b"));
-
-			List<Document> contoursOf2 = (List<Document>) contoursCollection.find(eq("_id", imageId2 + i))
-					.into(new ArrayList<Document>());
-			Mat contourOf2_r = Initialize.matFromJson((String) contoursOf2.get(0).get("contours_r"));
-			Mat contourOf2_g = Initialize.matFromJson((String) contoursOf2.get(0).get("contours_g"));
-			Mat contourOf2_b = Initialize.matFromJson((String) contoursOf2.get(0).get("contours_b"));
-
-			comparisons_r += Imgproc.compareHist(contourOf1_r, contourOf2_r, Imgproc.HISTCMP_BHATTACHARYYA);
-			comparisons_g += Imgproc.compareHist(contourOf1_g, contourOf2_g, Imgproc.HISTCMP_BHATTACHARYYA);
-			comparisons_b += Imgproc.compareHist(contourOf1_b, contourOf2_b, Imgproc.HISTCMP_BHATTACHARYYA);
-
-			if (i != (numberOfComparisons - 1)) {
-				comparisons_r += ",";
-				comparisons_g += ",";
-				comparisons_b += ",";
+			if (originalContours.size() < toCompareContours.size()) {
+				numberOfComparisons = originalContours.size();
+			} else {
+				numberOfComparisons = toCompareContours.size();
 			}
+			
+			compareObjJSON.addProperty("count_orig", originalContours.size());
+			compareObjJSON.addProperty("count_target", toCompareContours.size());
+
+			String comparisons_r = "[";
+			String comparisons_g = "[";
+			String comparisons_b = "[";
+			
+			for (int i = 0; i < numberOfComparisons; i++) {
+				List<Document> orig_contourDoc = (List<Document>) contoursCollection.find(eq("_id", originalContours.get(i)))
+						.into(new ArrayList<Document>());
+				Mat orig_r = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_r"));
+				Mat orig_g = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_g"));
+				Mat orig_b = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_b"));
+
+				List<Document> target_contourDoc = (List<Document>) contoursCollection.find(eq("_id", toCompareContours.get(i)))
+						.into(new ArrayList<Document>());
+				Mat target_r = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_r"));
+				Mat target_g = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_g"));
+				Mat target_b = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_b"));
+
+				comparisons_r += Imgproc.compareHist(orig_r, target_r, Imgproc.HISTCMP_BHATTACHARYYA);
+				comparisons_g += Imgproc.compareHist(orig_g, target_g, Imgproc.HISTCMP_BHATTACHARYYA);
+				comparisons_b += Imgproc.compareHist(orig_b, target_b, Imgproc.HISTCMP_BHATTACHARYYA);
+
+				if (i != (numberOfComparisons - 1)) {
+					comparisons_r += ",";
+					comparisons_g += ",";
+					comparisons_b += ",";
+				}
+			}
+			comparisons_r += "]";
+			comparisons_g += "]";
+			comparisons_b += "]";
+			
+			compareObjJSON.addProperty("r", comparisons_r);
+			compareObjJSON.addProperty("g", comparisons_g);
+			compareObjJSON.addProperty("b", comparisons_b);
+			
+			obj.add(args[index], compareObjJSON);
+			index++;
 		}
-		comparisons_r += "]";
-		comparisons_g += "]";
-		comparisons_b += "]";
 		
-		obj.addProperty("r", comparisons_r);
-		obj.addProperty("g", comparisons_g);
-		obj.addProperty("b", comparisons_b);
-
-
 		Gson gson = new Gson();
 		String json = gson.toJson(obj);
 		mongoClient.close();
