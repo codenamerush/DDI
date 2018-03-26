@@ -17,6 +17,7 @@ import org.opencv.core.Point;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,16 +31,26 @@ import com.mongodb.MongoClientURI;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 
+class SortByComparator implements Comparator<MatOfPoint>
+{
+    // Used for sorting in ascending order of
+    // roll number
+    public int compare(MatOfPoint a, MatOfPoint b)
+    {
+        return (int) (b.size().area() - a.size().area());
+    }
+}
+
 public class Initialize {
 	public static void main(String[] args) {
-//		 String[] args = {"generate", "/images/elsa2.jpeg", "/images/conv-elsa2.jpeg", "/images/hist-elsa2.jpeg", "11111"};
-//		 String[] args = {"compare","11111", "22222", "33333"};
+//		 String[] args = {"generate", "/images/elsa.jpg", "/images/conv-elsa.jpg", "/images/hist-elsa.jpg", "33333"};
+		// String[] args = {"compare","11111"};
 		switch (args[0]) {
 		case "generate":
 			Initialize.generateContourHistograms(args[1], args[2], args[3], args[4]);
 			break;
 		case "compare":
-//			Initialize.compare(args);
+			// Initialize.compare(args);
 			System.out.println(Initialize.compare(args));
 			break;
 		default:
@@ -63,13 +74,7 @@ public class Initialize {
 				.into(new ArrayList<Document>());
 		Document originalImage = originalDoc.get(0);
 		ArrayList<String> originalContours = (ArrayList<String>) originalImage.get("contours");
-		ArrayList<MatOfPoint> originalBigContours = new ArrayList<MatOfPoint>();
-		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_0")));
-		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_1")));
-		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_2")));
-		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_3")));
-		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_4")));
-
+		
 		while (index < args.length) {
 			JsonObject compareObjJSON = new JsonObject();
 			try {
@@ -77,13 +82,7 @@ public class Initialize {
 						.into(new ArrayList<Document>());
 				Document toCompareImage = toCompareDoc.get(0);
 				ArrayList<String> toCompareContours = (ArrayList<String>) toCompareImage.get("contours");
-				
-				ArrayList<MatOfPoint> toCompareBigContours = new ArrayList<MatOfPoint>();
-				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_0")));
-				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_1")));
-				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_2")));
-				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_3")));
-				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_4")));
+
 				
 				int numberOfComparisons = 0;
 			
@@ -96,24 +95,12 @@ public class Initialize {
 				compareObjJSON.addProperty("count_orig", originalContours.size());
 				compareObjJSON.addProperty("count_target", toCompareContours.size());
 				
-				double contourScore = 0;
 				
-				for (int i=0; i < originalBigContours.size(); i++) {
-					double bestMatch = 1000;
-					for (int j=0; j < originalBigContours.size(); j++) {
-						double match = Imgproc.matchShapes(originalBigContours.get(i), toCompareBigContours.get(j), 1, 0);
-						if (match < bestMatch) {
-							bestMatch = match;
-						}
-					}
-					contourScore += bestMatch;
-				}
-
 				String comparisons_r = "[";
 				String comparisons_g = "[";
 				String comparisons_b = "[";
 				
-				for (int i = 0; i < originalContours.size(); i++) {
+				for (int i = 0; i < numberOfComparisons; i++) {
 					List<Document> orig_contourDoc = (List<Document>) contoursCollection.find(eq("_id", originalContours.get(i)))
 							.into(new ArrayList<Document>());
 					Mat orig_r = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_r"));
@@ -140,8 +127,6 @@ public class Initialize {
 				comparisons_g += "]";
 				comparisons_b += "]";
 				
-				
-				compareObjJSON.addProperty("score", contourScore);
 				compareObjJSON.addProperty("r", comparisons_r);
 				compareObjJSON.addProperty("g", comparisons_g);
 				compareObjJSON.addProperty("b", comparisons_b);
@@ -159,22 +144,9 @@ public class Initialize {
 		mongoClient.close();
 		return json;
 	}
-	
-	public static MatOfPoint contourFromString(String str) {
-		MatOfPoint contour = new MatOfPoint();
-		String[] points = str.split("\\|");
-		List<Point> pts = new ArrayList<Point>();
-		for (int i = 0; i < points.length; i++) {
-			String[] coords = points[i].split(",");
-			double x = Double.parseDouble(coords[0]);
-			double y = Double.parseDouble(coords[1]);
-			pts.add(new Point(x,y));
-		}
-		contour.fromList(pts);
-		return contour;
-	}
 
 	public static void generateContourHistograms(String srcstr, String contourstr, String histstr, String imageId) {
+		int MAX_CONTOURS = 250;
 		MongoClientURI connectionString = new MongoClientURI("mongodb://localhost:27017/loginapp");
 		MongoClient mongoClient = new MongoClient(connectionString);
 		MongoDatabase database = mongoClient.getDatabase("loginapp");
@@ -198,19 +170,14 @@ public class Initialize {
 		Mat hierarchy = new Mat();
 		Imgproc.findContours(gray, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 		ArrayList<String> contourIds = new ArrayList<String>();
+		Collections.sort(contours, new SortByComparator());
 
-		Map<Double, MatOfPoint> maps = new HashMap<Double, MatOfPoint>();
-		ArrayList<Double> list = new ArrayList<Double>();
-		ArrayList<MatOfPoint> bigContours = new ArrayList<MatOfPoint>();
+		if (MAX_CONTOURS > contours.size()) {
+			MAX_CONTOURS = contours.size();
+		}
 		// Draw contours on the source image
-		for (int contourIdx = 0; contourIdx < contours.size(); contourIdx++) {
-			
+		for (int contourIdx = 0; contourIdx < MAX_CONTOURS; contourIdx++) {
 			Imgproc.drawContours(src, contours, contourIdx, new Scalar(0, 0, 255), -1);
-//			System.out.println(Imgproc.matchShapes(contours.get(contourIdx), pt, 1, 0.0));
-			double area = Imgproc.contourArea(contours.get(contourIdx));
-			maps.put(area, contours.get(contourIdx));
-			list.add(area);
-			
 			String[] contours_str = Initialize.jsonOfContour(src, contours, contourIdx);
 			Document contourDocument = new Document();
 			contourDocument.append("_id", imageId + contourIdx);
@@ -220,35 +187,6 @@ public class Initialize {
 			contoursCollection.insertOne(contourDocument);
 			contourIds.add(imageId + contourIdx);
 		}
-		
-		String[] bigContourList = new String[5];
-		Collections.sort(list, Collections.reverseOrder());
-		bigContours.add(maps.get(list.get(0)));
-		bigContours.add(maps.get(list.get(1)));
-		bigContours.add(maps.get(list.get(2)));
-		bigContours.add(maps.get(list.get(3)));
-		bigContours.add(maps.get(list.get(4)));
-		
-		for (int i = 0; i < bigContours.size(); i++) {
-			List<Point> LOP = bigContours.get(i).toList();
-			for (int j = 0; j < LOP.size(); j++) {
-				if (bigContourList[i] == null) {
-					bigContourList[i] = "";
-				}
-				bigContourList[i] += LOP.get(j).x;
-				bigContourList[i] += ",";
-				bigContourList[i] += LOP.get(j).x;
-				if ( j != LOP.size()-1) {
-					bigContourList[i] += "|";
-				}
-			}
-		}
-		
-		document.append("big_contours_0", bigContourList[0]);
-		document.append("big_contours_1", bigContourList[1]);
-		document.append("big_contours_2", bigContourList[2]);
-		document.append("big_contours_3", bigContourList[3]);
-		document.append("big_contours_4", bigContourList[4]);
 		document.append("contours", contourIds);
 
 		// Write contoured image
@@ -262,6 +200,7 @@ public class Initialize {
 		// Split image channels into RGB planes
 		List<Mat> rgbPlanes = new ArrayList<Mat>();
 		Core.split(image, rgbPlanes);
+
 
 		// Histogram size and range constants
 		MatOfInt histSize = new MatOfInt(256);
