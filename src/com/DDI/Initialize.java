@@ -16,6 +16,7 @@ import com.google.gson.JsonParser;
 import org.opencv.core.Point;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +31,9 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 
 public class Initialize {
-	public static void main(String[] argsx) {
-		// String[] args = {"generate", "/images/elsa.jpg", "/images/conv-elsa.jpg",
-		// "/images/hist-elsa.jpg", "33333"};
-		 String[] args = {"compare","0a3a164e821a-4f53-a825-98a3aec3b167","c4828efb1bf1-4b1c-b6d6-b670aa57df70","9cd1e8619759-4fde-b433-810965895976","7741354beaa4-42ee-ac49-1024415caaa4","83d19565ffc9-4c7a-bbae-82e142ab26f3","280c68ab595f-4831-9807-737325ef8a1e","2585c5887b16-47fb-a22c-ba9c3cf3197b","c9ff1fb58dd3-4785-a3b7-6124d64d0040","a33fdc88cc36-43b7-be54-54d44fa9ee24","3f247e217cae-48c3-8db1-392d168f64da","51616b971877-4747-ab41-a8d8b5f6df75","a31fcaf21a94-476f-81ca-4981c90ff1dd","db5bfbba06c5-45e6-a324-061526679dc9","2f0f121bb6b2-4cb9-9c98-4235cfa7d6ed","7caee2fd257c-4c62-8a6d-d41fff55a5bd","34a491845c04-4856-bda0-017f5e6fb1c8","e056786745fa-4d70-8cb6-5943ab04f15e","f49744194d02-4d0e-808c-88b91b2e85a5","ff1e17396e57-4f60-895a-6d2ff3a4506c","0a3a164e821a-4f53-a825-98a3aec3b167","6743e75b7c5e-4873-bbd4-cd6d074164e0","39291ce498c8-4d2f-bad2-1cddac2818b3","02879888e9c1-4a98-9a6a-c75be4f2acbe","5376521f51db-42c2-8f64-de23fe92dc96","ce0af9e49fc8-4609-ba4c-d03ff6f15e19","88838292f071-4c90-89b3-bc09409bc148","57fe874fbc92-44f0-9adf-52256f988e34","bd6b9f2d3821-429d-8fc5-004edb53c191","e52ed4466483-4a42-b88e-023c5cb90b1c","7418e4658902-431d-b7fb-e794a0af85a2","52bc29bcb0af-4496-be84-338d2af113a9","8a585974c668-4a24-b1c1-dfc5439f7b23","0a328dd18ec1-486b-9d01-3e8545ac0054","fa9310440f7d-4897-9a1c-cb1374bf49ac"};
+	public static void main(String[] args) {
+//		 String[] args = {"generate", "/images/elsa2.jpeg", "/images/conv-elsa2.jpeg", "/images/hist-elsa2.jpeg", "11111"};
+//		 String[] args = {"compare","11111", "22222", "33333"};
 		switch (args[0]) {
 		case "generate":
 			Initialize.generateContourHistograms(args[1], args[2], args[3], args[4]);
@@ -63,6 +63,12 @@ public class Initialize {
 				.into(new ArrayList<Document>());
 		Document originalImage = originalDoc.get(0);
 		ArrayList<String> originalContours = (ArrayList<String>) originalImage.get("contours");
+		ArrayList<MatOfPoint> originalBigContours = new ArrayList<MatOfPoint>();
+		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_0")));
+		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_1")));
+		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_2")));
+		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_3")));
+		originalBigContours.add(Initialize.contourFromString((String) originalImage.get("big_contours_4")));
 
 		while (index < args.length) {
 			JsonObject compareObjJSON = new JsonObject();
@@ -71,6 +77,14 @@ public class Initialize {
 						.into(new ArrayList<Document>());
 				Document toCompareImage = toCompareDoc.get(0);
 				ArrayList<String> toCompareContours = (ArrayList<String>) toCompareImage.get("contours");
+				
+				ArrayList<MatOfPoint> toCompareBigContours = new ArrayList<MatOfPoint>();
+				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_0")));
+				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_1")));
+				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_2")));
+				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_3")));
+				toCompareBigContours.add(Initialize.contourFromString((String) toCompareImage.get("big_contours_4")));
+				
 				int numberOfComparisons = 0;
 			
 				if (originalContours.size() < toCompareContours.size()) {
@@ -81,12 +95,25 @@ public class Initialize {
 				
 				compareObjJSON.addProperty("count_orig", originalContours.size());
 				compareObjJSON.addProperty("count_target", toCompareContours.size());
+				
+				double contourScore = 0;
+				
+				for (int i=0; i < originalBigContours.size(); i++) {
+					double bestMatch = 1000;
+					for (int j=0; j < originalBigContours.size(); j++) {
+						double match = Imgproc.matchShapes(originalBigContours.get(i), toCompareBigContours.get(j), 1, 0);
+						if (match < bestMatch) {
+							bestMatch = match;
+						}
+					}
+					contourScore += bestMatch;
+				}
 
 				String comparisons_r = "[";
 				String comparisons_g = "[";
 				String comparisons_b = "[";
 				
-				for (int i = 0; i < numberOfComparisons; i++) {
+				for (int i = 0; i < originalContours.size(); i++) {
 					List<Document> orig_contourDoc = (List<Document>) contoursCollection.find(eq("_id", originalContours.get(i)))
 							.into(new ArrayList<Document>());
 					Mat orig_r = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_r"));
@@ -113,6 +140,8 @@ public class Initialize {
 				comparisons_g += "]";
 				comparisons_b += "]";
 				
+				
+				compareObjJSON.addProperty("score", contourScore);
 				compareObjJSON.addProperty("r", comparisons_r);
 				compareObjJSON.addProperty("g", comparisons_g);
 				compareObjJSON.addProperty("b", comparisons_b);
@@ -129,6 +158,20 @@ public class Initialize {
 		String json = gson.toJson(obj);
 		mongoClient.close();
 		return json;
+	}
+	
+	public static MatOfPoint contourFromString(String str) {
+		MatOfPoint contour = new MatOfPoint();
+		String[] points = str.split("\\|");
+		List<Point> pts = new ArrayList<Point>();
+		for (int i = 0; i < points.length; i++) {
+			String[] coords = points[i].split(",");
+			double x = Double.parseDouble(coords[0]);
+			double y = Double.parseDouble(coords[1]);
+			pts.add(new Point(x,y));
+		}
+		contour.fromList(pts);
+		return contour;
 	}
 
 	public static void generateContourHistograms(String srcstr, String contourstr, String histstr, String imageId) {
@@ -156,9 +199,18 @@ public class Initialize {
 		Imgproc.findContours(gray, contours, hierarchy, Imgproc.RETR_TREE, Imgproc.CHAIN_APPROX_SIMPLE);
 		ArrayList<String> contourIds = new ArrayList<String>();
 
+		Map<Double, MatOfPoint> maps = new HashMap<Double, MatOfPoint>();
+		ArrayList<Double> list = new ArrayList<Double>();
+		ArrayList<MatOfPoint> bigContours = new ArrayList<MatOfPoint>();
 		// Draw contours on the source image
 		for (int contourIdx = 0; contourIdx < contours.size(); contourIdx++) {
+			
 			Imgproc.drawContours(src, contours, contourIdx, new Scalar(0, 0, 255), -1);
+//			System.out.println(Imgproc.matchShapes(contours.get(contourIdx), pt, 1, 0.0));
+			double area = Imgproc.contourArea(contours.get(contourIdx));
+			maps.put(area, contours.get(contourIdx));
+			list.add(area);
+			
 			String[] contours_str = Initialize.jsonOfContour(src, contours, contourIdx);
 			Document contourDocument = new Document();
 			contourDocument.append("_id", imageId + contourIdx);
@@ -168,6 +220,35 @@ public class Initialize {
 			contoursCollection.insertOne(contourDocument);
 			contourIds.add(imageId + contourIdx);
 		}
+		
+		String[] bigContourList = new String[5];
+		Collections.sort(list, Collections.reverseOrder());
+		bigContours.add(maps.get(list.get(0)));
+		bigContours.add(maps.get(list.get(1)));
+		bigContours.add(maps.get(list.get(2)));
+		bigContours.add(maps.get(list.get(3)));
+		bigContours.add(maps.get(list.get(4)));
+		
+		for (int i = 0; i < bigContours.size(); i++) {
+			List<Point> LOP = bigContours.get(i).toList();
+			for (int j = 0; j < LOP.size(); j++) {
+				if (bigContourList[i] == null) {
+					bigContourList[i] = "";
+				}
+				bigContourList[i] += LOP.get(j).x;
+				bigContourList[i] += ",";
+				bigContourList[i] += LOP.get(j).x;
+				if ( j != LOP.size()-1) {
+					bigContourList[i] += "|";
+				}
+			}
+		}
+		
+		document.append("big_contours_0", bigContourList[0]);
+		document.append("big_contours_1", bigContourList[1]);
+		document.append("big_contours_2", bigContourList[2]);
+		document.append("big_contours_3", bigContourList[3]);
+		document.append("big_contours_4", bigContourList[4]);
 		document.append("contours", contourIds);
 
 		// Write contoured image
