@@ -16,6 +16,7 @@ import com.google.gson.JsonParser;
 import org.opencv.core.Point;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -43,8 +44,8 @@ class SortByComparator implements Comparator<MatOfPoint>
 
 public class Initialize {
 	public static void main(String[] args) {
-//		 String[] args = {"generate", "/images/elsa.jpg", "/images/conv-elsa.jpg", "/images/hist-elsa.jpg", "33333"};
-		// String[] args = {"compare","11111"};
+//		 String[] args = {"generate", "/images/elsa.jpg", "/images/conv-elsa.jpg", "/images/hist-elsa.jpg", "99"};
+//		 String[] args = {"compare","99", "99"};
 		switch (args[0]) {
 		case "generate":
 			Initialize.generateContourHistograms(args[1], args[2], args[3], args[4]);
@@ -68,20 +69,29 @@ public class Initialize {
 		MongoCollection<Document> imagesCollection = database.getCollection("images");
 		MongoCollection<Document> contoursCollection = database.getCollection("contours");
 		int index = 2; // comparing to images start from index 2
-		List<Document> documents = null;
-		
 		List<Document> originalDoc = (List<Document>) imagesCollection.find(eq("_id", args[1]))
 				.into(new ArrayList<Document>());
 		Document originalImage = originalDoc.get(0);
 		ArrayList<String> originalContours = (ArrayList<String>) originalImage.get("contours");
+		Mat original_Histogram_r = Initialize.matFromJson((String) originalImage.get("img_hist_0"));
+		Mat original_Histogram_g = Initialize.matFromJson((String) originalImage.get("img_hist_1"));
+		Mat original_Histogram_b = Initialize.matFromJson((String) originalImage.get("img_hist_2"));
 		
 		while (index < args.length) {
 			JsonObject compareObjJSON = new JsonObject();
 			try {
+				double score = 0;
 				List<Document> toCompareDoc = (List<Document>) imagesCollection.find(eq("_id", args[index]))
 						.into(new ArrayList<Document>());
 				Document toCompareImage = toCompareDoc.get(0);
 				ArrayList<String> toCompareContours = (ArrayList<String>) toCompareImage.get("contours");
+				Mat compareTo_Histogram_r = Initialize.matFromJson((String) toCompareImage.get("img_hist_0"));
+				Mat compareTo_Histogram_g = Initialize.matFromJson((String) toCompareImage.get("img_hist_1"));
+				Mat compareTo_Histogram_b = Initialize.matFromJson((String) toCompareImage.get("img_hist_2"));
+
+				score += Imgproc.compareHist(original_Histogram_r, compareTo_Histogram_r, Imgproc.HISTCMP_BHATTACHARYYA);
+				score += Imgproc.compareHist(original_Histogram_g, compareTo_Histogram_g, Imgproc.HISTCMP_BHATTACHARYYA);
+				score += Imgproc.compareHist(original_Histogram_b, compareTo_Histogram_b, Imgproc.HISTCMP_BHATTACHARYYA);
 
 				
 				int numberOfComparisons = 0;
@@ -92,6 +102,7 @@ public class Initialize {
 					numberOfComparisons = toCompareContours.size();
 				}
 				
+				compareObjJSON.addProperty("score", score/3);
 				compareObjJSON.addProperty("count_orig", originalContours.size());
 				compareObjJSON.addProperty("count_target", toCompareContours.size());
 				
@@ -134,7 +145,7 @@ public class Initialize {
 				obj.add(args[index], compareObjJSON);
 				
 			} catch(Exception e) {
-//				System.out.println("===>> Failure for index: " + index + " Identifier : " + args[index] );
+				e.printStackTrace();
 			}
 			index++;
 		}
@@ -200,6 +211,8 @@ public class Initialize {
 		// Split image channels into RGB planes
 		List<Mat> rgbPlanes = new ArrayList<Mat>();
 		Core.split(image, rgbPlanes);
+		
+		System.out.println(image.type());
 
 
 		// Histogram size and range constants
@@ -233,6 +246,7 @@ public class Initialize {
 			// Calculate histogram for current channel and normalize to histogram size and
 			// range
 			Imgproc.calcHist(plane, new MatOfInt(0), new Mat(), hist, histSize, histRange, accumulate);
+			document.append("img_hist_" + index, Initialize.matToJson(hist));
 			Core.normalize(hist, hist, 3, histImage.rows(), Core.NORM_MINMAX);
 
 			// Draw lines connecting histogram points
@@ -329,6 +343,42 @@ public class Initialize {
 		return "{}";
 	}
 
+	public static String matToJson_U(Mat mat) {
+		JsonObject obj = new JsonObject();
+
+		if (mat.isContinuous()) {
+			int cols = mat.cols();
+			int rows = mat.rows();
+
+			byte[] data = new byte[cols * rows];
+			mat.get(0, 0, data);
+			String dataString =  Base64.getEncoder().encodeToString(data);
+	         
+	        //Base64 Decoded
+//	        byte[] decoded = Base64.getDecoder().decode(encoded);
+//
+//			for (int i = 0; i < data.length; i++) {
+//				dataString += data[i];
+//				if (i != (data.length - 1)) {
+//					dataString += "|";
+//				}
+//			}
+			
+			obj.addProperty("rows", mat.rows());
+			obj.addProperty("cols", mat.cols());
+			obj.addProperty("type", mat.type());
+			obj.addProperty("data", dataString);
+
+			Gson gson = new Gson();
+			String json = gson.toJson(obj);
+
+			return json;
+		} else {
+			System.out.println("Mat not continuous.");
+		}
+		return "{}";
+	}
+
 	public static Mat matFromJson(String json) {
 		JsonParser parser = new JsonParser();
 		JsonObject JsonObject = parser.parse(json).getAsJsonObject();
@@ -347,6 +397,24 @@ public class Initialize {
 			}
 		}
 
+		Mat mat = new Mat(rows, cols, type);
+		mat.put(0, 0, data);
+
+		return mat;
+	}
+	
+	public static Mat matFromJson_U(String json) {
+		JsonParser parser = new JsonParser();
+		JsonObject JsonObject = parser.parse(json).getAsJsonObject();
+
+		int rows = JsonObject.get("rows").getAsInt();
+		int cols = JsonObject.get("cols").getAsInt();
+		int type = JsonObject.get("type").getAsInt();
+
+		String dataString = JsonObject.get("data").getAsString();
+		
+		byte[] data = Base64.getDecoder().decode(dataString);
+		
 		Mat mat = new Mat(rows, cols, type);
 		mat.put(0, 0, data);
 
