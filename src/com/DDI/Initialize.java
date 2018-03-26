@@ -30,15 +30,16 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 
 public class Initialize {
-	public static void main(String[] args) {
+	public static void main(String[] argsx) {
 		// String[] args = {"generate", "/images/elsa.jpg", "/images/conv-elsa.jpg",
 		// "/images/hist-elsa.jpg", "33333"};
-//		 String[] args = {"compare", "9cd1e8619759-4fde-b433-810965895976", "9cd1e8619759-4fde-b433-810965895976"};
+		 String[] args = {"compare","0a3a164e821a-4f53-a825-98a3aec3b167","c4828efb1bf1-4b1c-b6d6-b670aa57df70","9cd1e8619759-4fde-b433-810965895976","7741354beaa4-42ee-ac49-1024415caaa4","83d19565ffc9-4c7a-bbae-82e142ab26f3","280c68ab595f-4831-9807-737325ef8a1e","2585c5887b16-47fb-a22c-ba9c3cf3197b","c9ff1fb58dd3-4785-a3b7-6124d64d0040","a33fdc88cc36-43b7-be54-54d44fa9ee24","3f247e217cae-48c3-8db1-392d168f64da","51616b971877-4747-ab41-a8d8b5f6df75","a31fcaf21a94-476f-81ca-4981c90ff1dd","db5bfbba06c5-45e6-a324-061526679dc9","2f0f121bb6b2-4cb9-9c98-4235cfa7d6ed","7caee2fd257c-4c62-8a6d-d41fff55a5bd","34a491845c04-4856-bda0-017f5e6fb1c8","e056786745fa-4d70-8cb6-5943ab04f15e","f49744194d02-4d0e-808c-88b91b2e85a5","ff1e17396e57-4f60-895a-6d2ff3a4506c","0a3a164e821a-4f53-a825-98a3aec3b167","6743e75b7c5e-4873-bbd4-cd6d074164e0","39291ce498c8-4d2f-bad2-1cddac2818b3","02879888e9c1-4a98-9a6a-c75be4f2acbe","5376521f51db-42c2-8f64-de23fe92dc96","ce0af9e49fc8-4609-ba4c-d03ff6f15e19","88838292f071-4c90-89b3-bc09409bc148","57fe874fbc92-44f0-9adf-52256f988e34","bd6b9f2d3821-429d-8fc5-004edb53c191","e52ed4466483-4a42-b88e-023c5cb90b1c","7418e4658902-431d-b7fb-e794a0af85a2","52bc29bcb0af-4496-be84-338d2af113a9","8a585974c668-4a24-b1c1-dfc5439f7b23","0a328dd18ec1-486b-9d01-3e8545ac0054","fa9310440f7d-4897-9a1c-cb1374bf49ac"};
 		switch (args[0]) {
 		case "generate":
 			Initialize.generateContourHistograms(args[1], args[2], args[3], args[4]);
 			break;
 		case "compare":
+//			Initialize.compare(args);
 			System.out.println(Initialize.compare(args));
 			break;
 		default:
@@ -65,57 +66,62 @@ public class Initialize {
 
 		while (index < args.length) {
 			JsonObject compareObjJSON = new JsonObject();
-			List<Document> toCompareDoc = (List<Document>) imagesCollection.find(eq("_id", args[index]))
-					.into(new ArrayList<Document>());
-			Document toCompareImage = toCompareDoc.get(0);
-			ArrayList<String> toCompareContours = (ArrayList<String>) toCompareImage.get("contours");
-			int numberOfComparisons = 0;
-		
-			if (originalContours.size() < toCompareContours.size()) {
-				numberOfComparisons = originalContours.size();
-			} else {
-				numberOfComparisons = toCompareContours.size();
-			}
-			
-			compareObjJSON.addProperty("count_orig", originalContours.size());
-			compareObjJSON.addProperty("count_target", toCompareContours.size());
-
-			String comparisons_r = "[";
-			String comparisons_g = "[";
-			String comparisons_b = "[";
-			
-			for (int i = 0; i < numberOfComparisons; i++) {
-				List<Document> orig_contourDoc = (List<Document>) contoursCollection.find(eq("_id", originalContours.get(i)))
+			try {
+				List<Document> toCompareDoc = (List<Document>) imagesCollection.find(eq("_id", args[index]))
 						.into(new ArrayList<Document>());
-				Mat orig_r = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_r"));
-				Mat orig_g = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_g"));
-				Mat orig_b = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_b"));
-
-				List<Document> target_contourDoc = (List<Document>) contoursCollection.find(eq("_id", toCompareContours.get(i)))
-						.into(new ArrayList<Document>());
-				Mat target_r = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_r"));
-				Mat target_g = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_g"));
-				Mat target_b = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_b"));
-
-				comparisons_r += Imgproc.compareHist(orig_r, target_r, Imgproc.HISTCMP_BHATTACHARYYA);
-				comparisons_g += Imgproc.compareHist(orig_g, target_g, Imgproc.HISTCMP_BHATTACHARYYA);
-				comparisons_b += Imgproc.compareHist(orig_b, target_b, Imgproc.HISTCMP_BHATTACHARYYA);
-
-				if (i != (numberOfComparisons - 1)) {
-					comparisons_r += ",";
-					comparisons_g += ",";
-					comparisons_b += ",";
+				Document toCompareImage = toCompareDoc.get(0);
+				ArrayList<String> toCompareContours = (ArrayList<String>) toCompareImage.get("contours");
+				int numberOfComparisons = 0;
+			
+				if (originalContours.size() < toCompareContours.size()) {
+					numberOfComparisons = originalContours.size();
+				} else {
+					numberOfComparisons = toCompareContours.size();
 				}
+				
+				compareObjJSON.addProperty("count_orig", originalContours.size());
+				compareObjJSON.addProperty("count_target", toCompareContours.size());
+
+				String comparisons_r = "[";
+				String comparisons_g = "[";
+				String comparisons_b = "[";
+				
+				for (int i = 0; i < numberOfComparisons; i++) {
+					List<Document> orig_contourDoc = (List<Document>) contoursCollection.find(eq("_id", originalContours.get(i)))
+							.into(new ArrayList<Document>());
+					Mat orig_r = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_r"));
+					Mat orig_g = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_g"));
+					Mat orig_b = Initialize.matFromJson((String) orig_contourDoc.get(0).get("contours_b"));
+
+					List<Document> target_contourDoc = (List<Document>) contoursCollection.find(eq("_id", toCompareContours.get(i)))
+							.into(new ArrayList<Document>());
+					Mat target_r = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_r"));
+					Mat target_g = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_g"));
+					Mat target_b = Initialize.matFromJson((String) target_contourDoc.get(0).get("contours_b"));
+
+					comparisons_r += Imgproc.compareHist(orig_r, target_r, Imgproc.HISTCMP_BHATTACHARYYA);
+					comparisons_g += Imgproc.compareHist(orig_g, target_g, Imgproc.HISTCMP_BHATTACHARYYA);
+					comparisons_b += Imgproc.compareHist(orig_b, target_b, Imgproc.HISTCMP_BHATTACHARYYA);
+
+					if (i != (numberOfComparisons - 1)) {
+						comparisons_r += ",";
+						comparisons_g += ",";
+						comparisons_b += ",";
+					}
+				}
+				comparisons_r += "]";
+				comparisons_g += "]";
+				comparisons_b += "]";
+				
+				compareObjJSON.addProperty("r", comparisons_r);
+				compareObjJSON.addProperty("g", comparisons_g);
+				compareObjJSON.addProperty("b", comparisons_b);
+				
+				obj.add(args[index], compareObjJSON);
+				
+			} catch(Exception e) {
+//				System.out.println("===>> Failure for index: " + index + " Identifier : " + args[index] );
 			}
-			comparisons_r += "]";
-			comparisons_g += "]";
-			comparisons_b += "]";
-			
-			compareObjJSON.addProperty("r", comparisons_r);
-			compareObjJSON.addProperty("g", comparisons_g);
-			compareObjJSON.addProperty("b", comparisons_b);
-			
-			obj.add(args[index], compareObjJSON);
 			index++;
 		}
 		
