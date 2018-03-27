@@ -34,8 +34,6 @@ import com.mongodb.client.MongoDatabase;
 
 class SortByComparator implements Comparator<MatOfPoint>
 {
-    // Used for sorting in ascending order of
-    // roll number
     public int compare(MatOfPoint a, MatOfPoint b)
     {
         return (int) (b.size().area() - a.size().area());
@@ -145,7 +143,7 @@ public class Initialize {
 				obj.add(args[index], compareObjJSON);
 				
 			} catch(Exception e) {
-				e.printStackTrace();
+//				e.printStackTrace();
 			}
 			index++;
 		}
